@@ -1,0 +1,185 @@
+<project name="Emma Instrumentation" default="instrument" basedir=".">
+    <description>sample example build file</description>
+	
+	<!--
+	 Usage :  Passing following as command line args for build file when integrating with CI/command line args
+					   i. Emma installation path 
+					  ii. App Server deployment path
+					  
+	Ex:  ant -f build-JVMPort.xml -Demma.dir=. -Ddeploy.dir=/home/pharos_priv_user/emma
+	Ex:  ant -f build-JVMPort.xml report -Demma.dir=/usr/local/jboss/server/default/deploy/ /-->
+   
+	 <!-- Directory contains emma jars, Emma work files and coverage reports. You may pass as command line args -->
+     <property name="emma.dir" value="/home/pharos_priv_user/emma"/>
+	 
+	 <!-- Deploy dir of App server. You may pass as command line args -->	
+	<property name="deploy.dir" value="/usr/local/jboss/server/default/deploy/"/>  
+	
+	<!-- Deploy dir of Jboss bin. You may pass as command line args-->	
+	<property name="jboss.bin.dir" value="/usr/local/jboss/bin"/>  
+	 
+	<!-- Emma instrumentation is enabled via following property -->
+     <property name="emma.enabled" value="true" />
+	 
+	<!-- output directory for instrumented code -->
+	<property name="src.archive.dir" value="${emma.dir}/archive_src_dir"/>
+
+     <!-- output directory for coverage reports -->
+     <property name="coverage.dir" value="${basedir}\Emma-Coverage" />
+	 
+	 <property name="old.archive.folder" value="${basedir}\old.archive.folder" />
+	 
+	 <!-- Emma instr class temp directory: -->
+     <property name="temp.archive.folder" value="${basedir}\temp_instrumentation" />
+
+	<!-- JVM Port for runtime data collection -->  
+	<property name="jvm.host.port" value="47653" /> 	
+
+	<!-- ******************   Coverage Ananlysis starts here ******************  -->
+	
+     <!-- Step 1: Set classpath to include Emma and ANT binaries-->
+	<path id="emma.classpath">
+		<fileset dir="${emma.dir}">
+			<include name="lib/*.jar"/>
+		</fileset>
+    </path>
+	
+	<!-- Step 2: Settings to use ANT tasks-->
+	<taskdef resource="emma_ant.properties" classpathref="emma.classpath"/>
+ 
+	<!-- Step 3: Initialize directories-->
+	<target name="init" description="turns on EMMA instrumentation/reporting">
+		<delete dir="${src.archive.dir}"/>
+		<delete dir="${temp.archive.folder}"/>
+		<delete dir="${coverage.dir}"/>		
+		
+		<mkdir dir="${temp.archive.folder}"/>
+		<mkdir dir="${coverage.dir}"/>		
+		
+    </target>
+	
+	<!-- Step 4: Instrument the .jar's/.classes/.war's/.ear's -->
+	<target name="instrument" depends="init" description="Instrument jars">
+	
+		<!-- Iterate for the artifacts that needs code coverage -->	 
+		
+		<antcall target="coverage.instrumentation"  inheritAll="true" inheritRefs="true">
+            <param name="archive.file" value="<To be instrumented>.war" />
+         </antcall>
+		 
+		  <antcall target="coverage.instrumentation" inheritAll="true" inheritRefs="true">
+            <param name="archive.file" value="<To be instrumented>.ear" />
+         </antcall>
+		 
+		 <!-- Copy emma.jar to /lib of deploy folder. For Ex. lib folder of jboss -->
+		<copy file="${emma.dir}/lib/emma.jar" todir="${deploy.dir}/lib"/>
+        <antcall target="change-owner-and-mode">
+            <param name="file.name" value="${deploy.dir}/lib/emma.jar"/>
+         </antcall>
+		
+	</target>
+		
+	<!-- Step 4.1:  Target to instrument binaries for code coverage-->
+	<target name="coverage.instrumentation">
+		
+		<!-- Define and Create a explicit directory independetly for different binaries -->
+		<property name="archive.dir" value="${src.archive.dir}/${archive.file}"/>
+		<echo message="Archive file : ${archive.dir}"/>
+		<mkdir dir="${archive.dir}"/>
+		
+		<!-- Extract class files for instrumentation. Skip this step if already handy-->
+        <unzip src="${deploy.dir}/deploy/${archive.file}" dest="${archive.dir}" />
+		
+		<!-- Instrumenting code using Emma-->
+		<echo message="instrumenting target ******"/>
+		<echo message="dest direct : ${archive.dir}"/>
+		<echo message="metadata file : ${coverage.dir}"/>
+		<echo message="src archive directory : ${archive.dir}"/>
+		
+         <emma verbosity="verbose" enabled="${emma.enabled}">
+		     <instr mode="overwrite"
+					merge="true"
+					destdir="${archive.dir}"
+					metadatafile="${coverage.dir}/${archive.file}-metadata.em">
+					<!-- Explicitly include/exclude if anything specific based on the requirement -->
+					<instrpath>
+                    <fileset dir="${temp.archive.folder}" includes="**/*.class, **/*.jar "/>
+                </instrpath>
+			</instr>		
+		</emma>
+
+		<!-- Generate instrumented binaries and copy to deploy location -->
+		<echo message="jaring from dest :${archive.dir}/${archive.file}"/>
+		<jar destfile="${temp.archive.folder}/${archive.file}" basedir="${archive.dir}"/>
+		<move file="${deploy.dir}/deploy/${archive.file}" todir="${old.archive.folder}"/>
+		
+		<antcall target="change-owner-and-mode">
+            <param name="file.name" value="${temp.archive.folder}/${archive.file}"/>
+        </antcall>
+		
+		<move file="${temp.archive.folder}/${archive.file}" todir="${deploy.dir}/deploy"/>
+		
+	</target>
+	
+	<!-- Step 5: Collect the data from JVM Port runtime -->
+	 <target name="collect" >
+                <property name="coverage.dir" value="coverage"/>
+                <property name="coverage.file" value="coverage.em"/>
+                <emma>
+                    <ctl connect="${jvm.host.port}">
+                        <command name="coverage.get" args="${coverage.dir}/${coverage.file},true"/>
+                        <command name="coverage.reset"/>
+                    </ctl>
+                </emma>
+            </target>
+	
+	<!-- Step 6: Generate Coverage Report-->
+	 <target name="report" depends="collect">
+         <emma enabled="${emma.enabled}">
+             <report sourcepath="${archive.dir}" depth="method">
+                 <fileset dir="${coverage.dir}" >
+                     <include name="*.em" />
+                 </fileset>
+				  <fileset dir="${coverage.dir}">
+					<include name="*.em"/>
+				</fileset>
+                 <txt outfile="${coverage.dir}/coverage.txt" />
+                 <html outfile="${coverage.dir}/coverage.html" />
+             </report>
+         </emma>
+     </target>
+	 
+	 <target name="change-owner-and-mode" description="change file owner and mode">
+        <echo message="changing owner and mode of file : ${file.name}"/>
+        <chown file="${file.name}" owner="app:app"/>
+        <chmod file="${file.name}" perm="644"/>
+    </target>
+	
+	<!-- Stop Jboss -->	
+	<target name="stop-jboss" depends="init" description="Stops back-end EJB container" >
+	
+	<exec executable="${jboss.bin.dir}/shutdown.bat " spawn="true" >
+        <arg line="-S" />
+    </exec>
+
+	<!--sshexec host="localhost"
+    username="pharos_priv_user"
+    password="Intuit01"
+    command="${jboss.bin.dir}/shutdown.bat" 
+	trust="true"/-->
+	
+    <echo>+-----------------------------+</echo>
+    <echo>| J B O S S   S T O P P E D   |</echo>
+    <echo>+-----------------------------+</echo>
+	</target>
+
+	<!-- Start Jboss -->
+	<target name="start-jboss" description="Starts back-end EJB container" >
+		<exec executable="${jboss.bin.dir}/run.bat" spawn="true">
+		</exec>
+		<echo>+-----------------------------+</echo>
+		<echo>| J B O S S   S T A R T E D   |</echo>
+		<echo>+-----------------------------+</echo>
+	</target>
+	
+</project>
