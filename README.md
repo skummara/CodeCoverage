@@ -29,7 +29,7 @@ Pre-Requisites
 •          Emma installed: http://emma.sourceforge.net/
 
 Usage:
-•          Create Ant Build File. Eg  emma/build.xml
+•          Create emma directory and copy the contents (lib,build.xml).
 •          Under emma/ dir, execute “ant -f build.xml”
 •          Restart Jboss
 •          Run Tests
@@ -44,72 +44,3 @@ Step 4: Instrument the .jar's/.classes/.war's/.ear's
 Step 5: Collect the data from JVM Port runtime
 Step 6: Generate Coverage Report
  
-
-
-
-
-
-
-Tool Evaluation:
-
-Parameters	Comments
-Coverage Levels	 
-Package	 
-Class	 
-Method	 
-Block	 
-Line	 
-File	 
-Report Clarity	 
-Hit Count	No. of times the statement/code block is hit
-Source Linking	Ability to link coverage Report and Source Code
-Exclusion Management	 
-Source File Exclusion	 
-Exclusion Patterns Support	Ebility to exclude certain areas of code from reporting
-Advanced Reporting	 
-HTML Reports	 
-Incremental Reporting	 
-Base lining & Versioning	Only for newly added code
-Platform Support	 
-Command Line	 
-Licensing	 
-Well Documented	 
-Open Source	 
-Community based Support	 
-Technical Aspects	 
-Source Level Instrumentation	 
-Merging	 
-Performance	 
-
-
-
-
-
-
-
-Tool References:
-
-S.No	Technology	Tools
-1	Java	Emma, Cobertura
-2	.NET	NCover, PartCover
-3	C/C++	BullsEye, CoverageMeter
-
-
-
-Other Details:
-
-Command line support for coverage useful for CI Integration:
-
-ant -f build.xml -Demma.dir=.  -Ddeploy.dir=/<jboss deploy dir> -Ddeploy.lib=<jboss default lib>
-
-For report Generation:
- ant -f build.xml -Demma.dir=.  report
-
-Sample script snippet for coverage collection from JVM :
-
-<emma>
-                    <ctl connect="${jvm.host.port}">
-                        <command name="coverage.get" args="${coverage.dir}/${coverage.file},true"/>
-                        <command name="coverage.reset"/>
-                    </ctl>
-                </emma>
