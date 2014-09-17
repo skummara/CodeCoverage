@@ -163,7 +163,7 @@
         <arg line="-S" />
     </exec>
 
-	<!--sshexec host="localhost"
+    <!--sshexec host="localhost"
     username="pharos_priv_user"
     password="Intuit01"
     command="${jboss.bin.dir}/shutdown.bat" 
