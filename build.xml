@@ -13,10 +13,10 @@
      <property name="emma.dir" value="/home/pharos_priv_user/emma"/>
 	 
 	 <!-- Deploy dir of App server. You may pass as command line args -->	
-	<property name="deploy.dir" value="/usr/local/jboss/server/default/deploy/"/>  
+	<property name="deploy.dir" value="/usr/local/jboss/server/default/"/>  
 	
-	<!-- Deploy dir of Jboss bin. You may pass as command line args-->	
-	<property name="jboss.bin.dir" value="/usr/local/jboss/bin"/>  
+	<!-- Deploy dir of AppServer bin. You may pass as command line args-->	
+	<property name="jboss.bin.dir" value="/usr/local/jboss/bin/"/> 
 	 
 	<!-- Emma instrumentation is enabled via following property -->
      <property name="emma.enabled" value="true" />
@@ -25,12 +25,13 @@
 	<property name="src.archive.dir" value="${emma.dir}/archive_src_dir"/>
 
      <!-- output directory for coverage reports -->
-     <property name="coverage.dir" value="${basedir}\Emma-Coverage" />
+     <property name="coverage.dir" value="${basedir}/Coverage" />
 	 
-	 <property name="old.archive.folder" value="${basedir}\old.archive.folder" />
+	 <!-- output directory for metadata  -->
+     <property name="coveragemetadata.dir" value="${basedir}/Emma-Coverage" />
 	 
-	 <!-- Emma instr class temp directory: -->
-     <property name="temp.archive.folder" value="${basedir}\temp_instrumentation" />
+	 <!-- Temporary backup for rollback -->
+	 <property name="old.archive.folder" value="${basedir}/old.archive.folder" />
 
 	<!-- JVM Port for runtime data collection -->  
 	<property name="jvm.host.port" value="47653" /> 	
@@ -47,14 +48,14 @@
 	<!-- Step 2: Settings to use ANT tasks-->
 	<taskdef resource="emma_ant.properties" classpathref="emma.classpath"/>
  
-	<!-- Step 3: Initialize directories-->
+	<!-- Step 3: Clean Up and Initialize directories-->
 	<target name="init" description="turns on EMMA instrumentation/reporting">
 		<delete dir="${src.archive.dir}"/>
-		<delete dir="${temp.archive.folder}"/>
-		<delete dir="${coverage.dir}"/>		
+		<delete dir="${coverage.dir}"/>	
+		<delete dir="${coveragemetadata.dir}"/>		
 		
-		<mkdir dir="${temp.archive.folder}"/>
-		<mkdir dir="${coverage.dir}"/>		
+		<mkdir dir="${coverage.dir}"/>	
+		<mkdir dir="${coveragemetadata.dir}"/>		
 		
     </target>
 	
@@ -84,6 +85,7 @@
 		
 		<!-- Define and Create a explicit directory independetly for different binaries -->
 		<property name="archive.dir" value="${src.archive.dir}/${archive.file}"/>
+		<property name="emma.archive.file" value="emmainstr-${archive.file}"/>
 		<echo message="Archive file : ${archive.dir}"/>
 		<mkdir dir="${archive.dir}"/>
 		
@@ -100,48 +102,47 @@
 		     <instr mode="overwrite"
 					merge="true"
 					destdir="${archive.dir}"
-					metadatafile="${coverage.dir}/${archive.file}-metadata.em">
+					metadatafile="${coveragemetadata}/${archive.file}-metadata.em">
 					<!-- Explicitly include/exclude if anything specific based on the requirement -->
 					<instrpath>
-                    <fileset dir="${temp.archive.folder}" includes="**/*.class, **/*.jar "/>
+					<fileset dir="${archive.dir}" includes="**/*.jar"/>
                 </instrpath>
 			</instr>		
 		</emma>
 
 		<!-- Generate instrumented binaries and copy to deploy location -->
-		<echo message="jaring from dest :${archive.dir}/${archive.file}"/>
-		<jar destfile="${temp.archive.folder}/${archive.file}" basedir="${archive.dir}"/>
+		<jar destfile="${emma.archive.file}" basedir="${archive.dir}"/>
 		<move file="${deploy.dir}/deploy/${archive.file}" todir="${old.archive.folder}"/>
 		
 		<antcall target="change-owner-and-mode">
-            <param name="file.name" value="${temp.archive.folder}/${archive.file}"/>
+            <param name="file.name" value="${emma.archive.file}"/>
         </antcall>
 		
-		<move file="${temp.archive.folder}/${archive.file}" todir="${deploy.dir}/deploy"/>
+		<!-- Redeploy instrumented binaries -->
+		<move file="${emma.archive.file}" todir="${deploy.dir}/deploy"/>
 		
 	</target>
 	
 	<!-- Step 5: Collect the data from JVM Port runtime -->
 	 <target name="collect" >
-                <property name="coverage.dir" value="coverage"/>
-                <property name="coverage.file" value="coverage.em"/>
+                <property name="coverage.file" value="coverage.ec"/>
                 <emma>
                     <ctl connect="${jvm.host.port}">
                         <command name="coverage.get" args="${coverage.dir}/${coverage.file},true"/>
                         <command name="coverage.reset"/>
                     </ctl>
                 </emma>
-            </target>
+     </target>
 	
 	<!-- Step 6: Generate Coverage Report-->
 	 <target name="report" depends="collect">
          <emma enabled="${emma.enabled}">
              <report sourcepath="${archive.dir}" depth="method">
-                 <fileset dir="${coverage.dir}" >
+                 <fileset dir="${coveragemetadata}">
                      <include name="*.em" />
                  </fileset>
 				  <fileset dir="${coverage.dir}">
-					<include name="*.em"/>
+					<include name="*.ec"/>
 				</fileset>
                  <txt outfile="${coverage.dir}/coverage.txt" />
                  <html outfile="${coverage.dir}/coverage.html" />
