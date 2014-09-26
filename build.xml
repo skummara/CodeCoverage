@@ -102,7 +102,7 @@
 		     <instr mode="overwrite"
 					merge="true"
 					destdir="${archive.dir}"
-					metadatafile="${coveragemetadata}/${archive.file}-metadata.em">
+					metadatafile="${coveragemetadata.dir}/${archive.file}-metadata.em">
 					<!-- Explicitly include/exclude if anything specific based on the requirement -->
 					<instrpath>
 					<fileset dir="${archive.dir}" includes="**/*.jar"/>
@@ -138,7 +138,7 @@
 	 <target name="report" depends="collect">
          <emma enabled="${emma.enabled}">
              <report sourcepath="${archive.dir}" depth="method">
-                 <fileset dir="${coveragemetadata}">
+                 <fileset dir="${coveragemetadata.dir}">
                      <include name="*.em" />
                  </fileset>
 				  <fileset dir="${coverage.dir}">
